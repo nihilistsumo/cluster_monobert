@@ -475,7 +475,7 @@ def train_mono_sbert(train_art_qrels,
     mse = nn.MSELoss()
     val_rank_eval = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='model', model=model)
     print('\nInitial val MAP: %.4f' % val_rank_eval[MAP])
-    rand_rank_eval, rand_rand_dict, rand_nmi_dict = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='rand')
+    rand_rank_eval = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='rand')
     print('\nRandom ranker performance val MAP: %.4f' % rand_rank_eval[MAP])
     val_eval_score = val_rank_eval[MAP]
     bm25_rank_eval = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='bm25')
