@@ -28,14 +28,13 @@ def put_features_in_device(input_features, device):
 
 
 def prepare_data(art_qrels, qrels, paratext_tsv):
-    page_paras = get_article_qrels(art_qrels)
     page_sec_paras = get_page_sec_para_dict(qrels)
     paratext = {}
     with open(paratext_tsv, 'r', encoding='utf-8') as f:
         for l in f:
             p = l.split('\t')[0]
             paratext[p] = l.split('\t')[1].strip()
-    return page_paras, page_sec_paras, paratext
+    return page_sec_paras, paratext
 
 
 def eval_clustering(test_samples, model):
@@ -452,12 +451,12 @@ def train_mono_sbert(train_art_qrels,
                      lambda_val,
                      val_size,
                      bin_cluster_mode):
-    _, page_sec_paras, train_paratext = prepare_data(train_art_qrels, train_qrels, train_paratext_tsv)
+    page_sec_paras, train_paratext = prepare_data(train_art_qrels, train_qrels, train_paratext_tsv)
     val_pages = random.sample(page_sec_paras.keys(), val_size)
-    _, val_page_sec_paras = {k:page_sec_paras[k] for k in val_pages}, {k:page_sec_paras[k] for k in val_pages}
-    _, train_page_sec_paras = {k:page_sec_paras[k] for k in page_sec_paras.keys() - val_pages}, {k:page_sec_paras[k] for k in page_paras.keys() - val_pages}
-    _, b1train_page_sec_paras, b1train_paratext = prepare_data(b1train_art_qrels, b1train_qrels, b1train_paratext_tsv)
-    _, b1test_page_sec_paras, b1test_paratext = prepare_data(b1test_art_qrels, b1test_qrels, b1test_paratext_tsv)
+    val_page_sec_paras = {k:page_sec_paras[k] for k in val_pages}
+    train_page_sec_paras = {k:page_sec_paras[k] for k in page_sec_paras.keys() - val_pages}
+    b1train_page_sec_paras, b1train_paratext = prepare_data(b1train_art_qrels, b1train_qrels, b1train_paratext_tsv)
+    b1test_page_sec_paras, b1test_paratext = prepare_data(b1test_art_qrels, b1test_qrels, b1test_paratext_tsv)
 
     trans_model = models.Transformer(trans_model_name, max_seq_length=max_len)
     pool_model = models.Pooling(trans_model.get_word_embedding_dimension())
