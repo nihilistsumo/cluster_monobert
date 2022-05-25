@@ -489,6 +489,8 @@ def train_mono_sbert(train_art_qrels,
             for sec in train_page_sec_paras[page].keys():
                 paras += train_page_sec_paras[page][sec]
                 para_labels += [sec] * len(train_page_sec_paras[page][sec])
+            if not is_fit_for_training(paras, page_sec_paras[page]):
+                continue
             para_texts = [train_paratext[p] for p in paras]
             n = len(paras)
             model.train()
