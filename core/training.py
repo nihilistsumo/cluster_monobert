@@ -489,38 +489,37 @@ def train_mono_sbert(train_art_qrels,
             for sec in train_page_sec_paras[page].keys():
                 paras += train_page_sec_paras[page][sec]
                 para_labels += [sec] * len(train_page_sec_paras[page][sec])
-            if not is_fit_for_training(paras, page_sec_paras[page]):
-                continue
-            para_texts = [train_paratext[p] for p in paras]
-            n = len(paras)
-            model.train()
-            if not bin_cluster_mode:
-                true_sim_mat = torch.zeros((n, n)).to(device)
-                for p in range(n):
-                    for q in range(n):
-                        if para_labels[p] == para_labels[q]:
-                            true_sim_mat[p][q] = 1.0
-            for sec in set(para_labels):
-                if bin_cluster_mode:
+            if is_fit_for_training(paras, page_sec_paras[page]):
+                para_texts = [train_paratext[p] for p in paras]
+                n = len(paras)
+                model.train()
+                if not bin_cluster_mode:
                     true_sim_mat = torch.zeros((n, n)).to(device)
                     for p in range(n):
                         for q in range(n):
-                            if para_labels[p] == para_labels[q] == sec:
+                            if para_labels[p] == para_labels[q]:
                                 true_sim_mat[p][q] = 1.0
-                            elif para_labels[p] != sec and para_labels[q] != sec:
-                                true_sim_mat[p][q] = 1.0
-                pred_score, sim_mat = model(sec, para_texts)
-                true_labels = [1.0 if sec == para_labels[p] else 0 for p in range(len(para_labels))]
-                true_labels_tensor = torch.tensor(true_labels).to(device)
-                rk_loss = mse(pred_score, true_labels_tensor)
-                cl_loss = mse(sim_mat, true_sim_mat)
-                loss = lambda_val * rk_loss + (1 - lambda_val) * cl_loss
-                loss.backward()
-                # print('Rank loss: %.4f, Cluster loss: %.4f, Loss: %.4f' % (rk_loss.item(), cl_loss.item(), loss.item()))
-                nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-                opt.step()
-                opt.zero_grad()
-                schd.step()
+                for sec in set(para_labels):
+                    if bin_cluster_mode:
+                        true_sim_mat = torch.zeros((n, n)).to(device)
+                        for p in range(n):
+                            for q in range(n):
+                                if para_labels[p] == para_labels[q] == sec:
+                                    true_sim_mat[p][q] = 1.0
+                                elif para_labels[p] != sec and para_labels[q] != sec:
+                                    true_sim_mat[p][q] = 1.0
+                    pred_score, sim_mat = model(sec, para_texts)
+                    true_labels = [1.0 if sec == para_labels[p] else 0 for p in range(len(para_labels))]
+                    true_labels_tensor = torch.tensor(true_labels).to(device)
+                    rk_loss = mse(pred_score, true_labels_tensor)
+                    cl_loss = mse(sim_mat, true_sim_mat)
+                    loss = lambda_val * rk_loss + (1 - lambda_val) * cl_loss
+                    loss.backward()
+                    # print('Rank loss: %.4f, Cluster loss: %.4f, Loss: %.4f' % (rk_loss.item(), cl_loss.item(), loss.item()))
+                    nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                    opt.step()
+                    opt.zero_grad()
+                    schd.step()
             if (i + 1) % val_step == 0:
                 val_rank_eval = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='model', model=model)
                 print('\nval MAP: %.4f' % val_rank_eval[MAP])
