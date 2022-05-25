@@ -149,7 +149,7 @@ def eval_mono_bert_ranking(model, samples):
     return rank_evals
 
 
-def eval_mono_bert_ranking_full(page_paras, page_sec_paras, paratext, mode='bm25', model=None, per_query=False):
+def eval_mono_bert_ranking_full(page_sec_paras, paratext, mode='bm25', model=None, per_query=False):
     if model is not None:
         model.eval()
     with open('temp.qrels', 'w') as f:
@@ -161,7 +161,9 @@ def eval_mono_bert_ranking_full(page_paras, page_sec_paras, paratext, mode='bm25
         pages = list(page_sec_paras.keys())
         for p in tqdm(range(len(pages))):
             page = pages[p]
-            cand_set = page_paras[page]
+            cand_set = []
+            for s in page_sec_paras[page].keys():
+                cand_set += page_sec_paras[page][s]
             n = len(cand_set)
             for sec in page_sec_paras[page].keys():
                 cand_set_texts = [paratext[p] for p in cand_set]
@@ -450,12 +452,12 @@ def train_mono_sbert(train_art_qrels,
                      lambda_val,
                      val_size,
                      bin_cluster_mode):
-    page_paras, page_sec_paras, train_paratext = prepare_data(train_art_qrels, train_qrels, train_paratext_tsv)
-    val_pages = random.sample(page_paras.keys(), val_size)
-    val_page_paras, val_page_sec_paras = {k:page_paras[k] for k in val_pages}, {k:page_sec_paras[k] for k in val_pages}
-    train_page_paras, train_page_sec_paras = {k:page_paras[k] for k in page_paras.keys() - val_pages}, {k:page_sec_paras[k] for k in page_paras.keys() - val_pages}
-    b1train_page_paras, b1train_page_sec_paras, b1train_paratext = prepare_data(b1train_art_qrels, b1train_qrels, b1train_paratext_tsv)
-    b1test_page_paras, b1test_page_sec_paras, b1test_paratext = prepare_data(b1test_art_qrels, b1test_qrels, b1test_paratext_tsv)
+    _, page_sec_paras, train_paratext = prepare_data(train_art_qrels, train_qrels, train_paratext_tsv)
+    val_pages = random.sample(page_sec_paras.keys(), val_size)
+    _, val_page_sec_paras = {k:page_sec_paras[k] for k in val_pages}, {k:page_sec_paras[k] for k in val_pages}
+    _, train_page_sec_paras = {k:page_sec_paras[k] for k in page_sec_paras.keys() - val_pages}, {k:page_sec_paras[k] for k in page_paras.keys() - val_pages}
+    _, b1train_page_sec_paras, b1train_paratext = prepare_data(b1train_art_qrels, b1train_qrels, b1train_paratext_tsv)
+    _, b1test_page_sec_paras, b1test_paratext = prepare_data(b1test_art_qrels, b1test_qrels, b1test_paratext_tsv)
 
     trans_model = models.Transformer(trans_model_name, max_seq_length=max_len)
     pool_model = models.Pooling(trans_model.get_word_embedding_dimension())
@@ -469,19 +471,19 @@ def train_mono_sbert(train_art_qrels,
         {'params': [p for n, p in model_params if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
     ]
     opt = AdamW(optimizer_grouped_parameters, lr=lrate)
-    train_data_len = len(train_page_paras.keys())
+    train_data_len = len(train_page_sec_paras.keys())
     schd = transformers.get_linear_schedule_with_warmup(opt, warmup, num_epochs * train_data_len)
     mse = nn.MSELoss()
-    val_rank_eval = eval_mono_bert_ranking_full(val_page_paras, val_page_sec_paras, train_paratext, mode='model', model=model)
+    val_rank_eval = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='model', model=model)
     print('\nInitial val MAP: %.4f' % val_rank_eval[MAP])
-    rand_rank_eval, rand_rand_dict, rand_nmi_dict = eval_mono_bert_ranking_full(val_page_paras, val_page_sec_paras, train_paratext, mode='rand')
+    rand_rank_eval, rand_rand_dict, rand_nmi_dict = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='rand')
     print('\nRandom ranker performance val MAP: %.4f' % rand_rank_eval[MAP])
     val_eval_score = val_rank_eval[MAP]
-    bm25_rank_eval = eval_mono_bert_ranking_full(val_page_paras, val_page_sec_paras, train_paratext, mode='bm25')
+    bm25_rank_eval = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='bm25')
     print('\nBM25 ranker performance val MAP: %.4f' % bm25_rank_eval[MAP])
     for epoch in range(num_epochs):
         print('Epoch %3d' % (epoch + 1))
-        train_pages = list(train_page_paras.keys())
+        train_pages = list(train_page_sec_paras.keys())
         for i in tqdm(range(train_data_len)):
             page = train_pages[i]
             paras, para_labels = [], []
@@ -519,21 +521,21 @@ def train_mono_sbert(train_art_qrels,
                 opt.zero_grad()
                 schd.step()
             if (i + 1) % val_step == 0:
-                val_rank_eval = eval_mono_bert_ranking_full(val_page_paras, val_page_sec_paras, train_paratext, mode='model', model=model)
+                val_rank_eval = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='model', model=model)
                 print('\nval MAP: %.4f' % val_rank_eval[MAP])
                 if val_rank_eval[MAP] > val_eval_score and model_out is not None:
                     torch.save(model, model_out)
                     val_eval_score = val_rank_eval[MAP]
 
-    val_rank_eval = eval_mono_bert_ranking_full(val_page_paras, val_page_sec_paras, train_paratext, mode='model', model=model)
+    val_rank_eval = eval_mono_bert_ranking_full(val_page_sec_paras, train_paratext, mode='model', model=model)
     print('\nval MAP: %.4f' % val_rank_eval[MAP])
     if val_rank_eval[MAP] > val_eval_score and model_out is not None:
         torch.save(model, model_out)
     print('\nTraining complete. Evaluating on by1train and by1test sets...')
-    b1train_rank_eval = eval_mono_bert_ranking_full(b1train_page_paras, b1train_page_sec_paras, b1train_paratext, mode='model', model=model)
+    b1train_rank_eval = eval_mono_bert_ranking_full(b1train_page_sec_paras, b1train_paratext, mode='model', model=model)
     print('\nby1train eval MAP: %.4f, Rprec: %.4f, nDCG: %.4f' % (
         b1train_rank_eval[MAP], b1train_rank_eval[Rprec], b1train_rank_eval[nDCG]))
-    b1test_rank_eval = eval_mono_bert_ranking_full(b1test_page_paras, b1test_page_sec_paras, b1test_paratext, mode='model', model=model)
+    b1test_rank_eval = eval_mono_bert_ranking_full(b1test_page_sec_paras, b1test_paratext, mode='model', model=model)
     print('\nby1test eval MAP: %.4f, Rprec: %.4f, nDCG: %.4f' % (
         b1test_rank_eval[MAP], b1test_rank_eval[Rprec], b1test_rank_eval[nDCG]))
 
