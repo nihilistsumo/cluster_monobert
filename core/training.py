@@ -226,7 +226,7 @@ class Mono_SBERT_Clustering_Reg_Model(nn.Module):
         return output_emb
 
     def get_rank_scores(self, sec, para_texts):
-        output_emb = self.get_qs_embeddings(sec, para_texts)
+        output_emb = self.get_qs_embeddings(sec, para_texts).to(self.device)
         pred_score = self.act(self.fc1(output_emb)).flatten().detach().cpu().numpy()
         return pred_score
 
