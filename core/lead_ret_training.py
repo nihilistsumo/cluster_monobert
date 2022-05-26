@@ -128,7 +128,7 @@ def train_mono_sbert(train_qrels,
                             if para_labels[p] == para_labels[q]:
                                 true_sim_mat[p][q] = 1.0
                 for sec in set(para_labels):
-                    if '/' in sec:
+                    if '/' not in sec:
                         if bin_cluster_mode:
                             true_sim_mat = torch.zeros((n, n)).to(device)
                             for p in range(n):
